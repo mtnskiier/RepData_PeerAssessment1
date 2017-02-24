@@ -1,25 +1,112 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Personal Activity Monitoring Device"
+author: "JBaker"
+date: "February 23, 2017"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+## Overview
+Data from a personal activity monitoring device for 2 months (Oct & Nov 2012) are reviewed and analyzed with step-by-step commentary of the processing methods used and embedded graphics.
+
+### Loading and preprocessing the data
+Data is read and types are assigned to the data.
+```{r inputdata}
+actlog <- read.csv("./activity.csv", colClasses = c("integer", "character", "integer"))
+```
+### Determine the mean number of steps per day
+Calculate the total steps per day. Create a histogram of the data and display the mean, median, and total number of steps taken in the sample period. 
+
+Using the dplyr and lubridate packages to assist in summarizing the data.
+```{r  message=FALSE}
+library(dplyr)
+library(lubridate)
+stepsperday <- group_by(actlog, date) %>%
+        summarise(totalspd = sum(steps, na.rm = TRUE))
+
+with(stepsperday, {
+        hist(totalspd, xlab = "Steps per Day", breaks = 10,
+             main = "Frequency Distribution of Steps per Day")
+        print(paste0("Mean steps/day: ", round(mean(totalspd))))
+        print(paste0("Median steps/day: ", median(totalspd)))
+        })
+```
+### Daily Activity Pattern
+Computing the average number of steps per daily interval. Showing the plot for average steps taken in each 5 minute interval for the two months and showing the *interval* with the maximum average steps.
+```{r }
+avgperint <- group_by(actlog, interval) %>% summarise(pd=mean(steps, na.rm=TRUE))
+plot(pd~interval, data=avgperint, type="l", ylab = "Average Steps", 
+        main = "Average Daily Activity")
+with(avgperint, {
+        busiest <- interval[which(pd == max(pd, na.rm=TRUE))]
+        abline(v=busiest, col="red", lty=3) 
+        btime <<-format(as.POSIXct(sprintf("%04d", as.numeric(busiest)),
+                                   format="%H%M"), format = "%H:%M")
+})
+```
+The busiest time of day is `r btime`
+
+### Missing Values
+There are missing values in the source data for the number of steps. There are `r sum(is.na(actlog$steps))` rows with missing data. Values will be imputed to the missing elements. The mean number of steps for that time interval will be used instead. 
+```{r }
+actlog_clean <- actlog                           ## Copy the original dataset
+for (i in seq(1,nrow(actlog_clean))) {           ## Modify the NA elements
+        if (is.na(actlog$steps[i])) {
+                intv <- actlog$interval[i]
+                actlog_clean$steps[i] <- avgperint$pd[avgperint$interval == intv]
+        }
+}
+```
+
+#### Examine the Imputed Dataset
+Plotting out a histogram of the new data and it's median and mean as a comparison to the original dataset.
+```{r }
+stepsperday1 <- group_by(actlog_clean, date) %>%
+        summarise(totalspd = sum(steps, na.rm = TRUE))
+
+with(stepsperday1, {
+        hist(totalspd, xlab = "Steps per Day", breaks = 10,
+             main = "Frequency Distribution of Steps per Day")
+        print(paste0("Mean steps/day: ", round(mean(totalspd))))
+        print(paste0("Median steps/day: ", round(median(totalspd))))
+        })
+```
+
+Imputing values to the missing data moved the median/mean steps per day up by 15% and 4% respectively. 
+
+## Weekdays vs. Weekends
+Comparing the activity on weekdays as compared to weekends with two plots by interval. 
+```{r }
+actlog_clean$daytype <- factor(wday(actlog_clean$date) %in% c(1,7), 
+                                       labels = c("weekday", "weekend"))
+
+avgperint_wkend <- filter(actlog_clean, daytype == "weekend") %>% 
+        group_by(interval) %>% summarise(pd=mean(steps))
+avgperint_wkday <- filter(actlog_clean, daytype == "weekday") %>% 
+        group_by(interval) %>% summarise(pd=mean(steps))
+
+par(mfrow=c(2,1))
+plot(pd~interval, data=avgperint_wkend, type="l", ylab = "Average Steps", 
+        main = "Average Weekend Activity")
+plot(pd~interval, data=avgperint_wkday, type="l", ylab = "Average Steps", 
+        main = "Average Weekday Activity")
+```
+
+Reviewing the charts reveals weekday activity is more concentrated around the morning. Weekend activity is more uniform throughout the day. Weekday peak activity appears to be higher. 
+
+## Summary and Challenges
+A data set from a personal activity tracker were analyzed over 2 months of data. Daily patterns are reviewed and weekday vs. weekend activity compared. Some challenges for further study:
+
+- Understand the data collection method and why there were many missing datum
+- Study the weekday patterns more closely and suggest improvements in the daily routine
+- Are there exercise intensity measures that should be factored in?
 
 
 
-## What is mean total number of steps taken per day?
 
 
 
-## What is the average daily activity pattern?
 
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
